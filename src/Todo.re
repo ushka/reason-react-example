@@ -9,16 +9,17 @@ type state = {
 };
 
 type action = 
-	| AddItem;
+	| AddItem(string)
+	| ToggleItem(int);
 
 let component = ReasonReact.reducerComponent("Todo");
 
 let lastId = ref(0);
-let newItem = () => {
+let newItem = (text) => {
 	lastId := lastId^ + 1;
 	{
 		id: lastId^,
-		title: "click a button",
+		title: text,
 		completed: true
 	}
 };
@@ -27,14 +28,43 @@ let str = ReasonReact.stringToElement;
 
 module TodoItem = {
 	let component = ReasonReact.statelessComponent("TodoItem");
-	let make = (~item, children) => {
+	let make = (~item, ~onToggle, children) => {
 		...component,
-		render: (self) =>
-			<div className="item">
+		render: (_) =>
+			<div className="item" onClick=((_evt) => onToggle())>
 				<input _type="checkbox" checked=(Js.Boolean.to_js_boolean(item.completed)) />
 				(str(item.title))
 			</div>
 	};
+};
+
+let valueFromEvent = (evt) : string => (
+  evt
+  |> ReactEventRe.Form.target
+  |> ReactDOMRe.domElementToObj
+)##value;
+
+module Input = {
+	type state = string;
+	let component = ReasonReact.reducerComponent("Input");
+	let make = (~onSubmit, _) => {
+		...component,
+		initialState: () => "",
+		reducer: (newText, _text) => ReasonReact.Update(newText),
+		render: ({state: text, reduce}) =>
+			<input
+        value=text
+        _type="text"
+        placeholder="Write something to do"
+        onChange=(reduce((evt) => valueFromEvent(evt)))
+        onKeyDown=((evt) =>
+          if (ReactEventRe.Keyboard.key(evt) == "Enter") {
+            onSubmit(text);
+            (reduce(() => ""))()
+          }
+        )
+      />
+	}
 };
 
 let make = (children) => {
@@ -50,7 +80,15 @@ let make = (children) => {
   },
   reducer: (action, {items}) =>
 	  switch action {
-	  | AddItem => ReasonReact.Update({items: [newItem(), ...items]})
+	  | AddItem(text) => ReasonReact.Update({items: [newItem(text), ...items]})
+	  | ToggleItem(id) =>
+	  	let items = List.map(
+	  		(item) =>
+	  			item.id === id ?
+	  				{...item, completed: ! item.completed} : item,
+	  			items
+	  	);
+	  	ReasonReact.Update({items: items})
   },  
   render: ({state: {items}, reduce}) => {
     let numItems = List.length(items);
@@ -58,14 +96,15 @@ let make = (children) => {
     <div className="app">
       <div className="title"> 
       	(str("What to do")) 
-      	<button onClick=(reduce((_evt) => AddItem))>
-          (str("Add something"))
-        </button>
+      	<Input onSubmit=(reduce((text) => AddItem(text))) />            	
       </div>
       <div className="items"> 
       	(
       		ReasonReact.arrayToElement(Array.of_list(
-      			List.map((item) => <TodoItem key=(string_of_int(item.id)) item />, items)
+      			List.map((item) => <TodoItem 
+      				key=(string_of_int(item.id)) 
+      				onToggle=(reduce(() => ToggleItem(item.id)))
+      				item />, items)
       		))
       	)
     	</div>
