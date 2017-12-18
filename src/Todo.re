@@ -11,11 +11,25 @@ type action =
 	| AddItem;
 
 let component = ReasonReact.reducerComponent("Todo");
+
 let newItem = () => {
 	title: "click a button",
 	completed: true
 };
+
 let str = ReasonReact.stringToElement;
+
+module TodoItem = {
+	let component = ReasonReact.statelessComponent("TodoItem");
+	let make = (~item, children) => {
+		...component,
+		render: (self) =>
+			<div className="item">
+				<input _type="checkbox" checked=(Js.Boolean.to_js_boolean(item.completed)) />
+				(str(item.title))
+			</div>
+	};
+};
 
 let make = (children) => {
   ...component,
